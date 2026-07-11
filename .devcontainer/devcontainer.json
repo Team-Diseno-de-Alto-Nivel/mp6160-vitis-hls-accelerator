@@ -1,0 +1,24 @@
+{
+    "name": "Vitis HLS + GEM5 Image Accelerator (SystemC model)",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "postCreateCommand": "make clean && make model",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "GitHub.vscode-github-actions",
+                "GitHub.copilot",
+                "GitHub.copilot-chat",
+                "ms-vscode.cpptools",
+                "ms-vscode.cpptools-extension-pack",
+                "ms-vscode.cmake-tools",
+                "ms-vscode.makefile-tools"
+            ],
+            "settings": {
+                "cmake.buildDirectory": "${workspaceFolder}/build"
+            }
+        }
+    }
+}
