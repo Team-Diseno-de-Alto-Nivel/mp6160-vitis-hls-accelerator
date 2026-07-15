@@ -21,6 +21,8 @@ Scaffolding only — no bridge/CPU wiring implemented yet. TODO for the team:
    or the equivalent `util/tlm` build for the gem5 version in use).
 2. Bind the `Accelerator` module's `target_socket` (config registers) and
    `init_socket` (RAM access) to the gem5-side bridge sockets.
-3. Pick an MMIO base address for the accelerator in the gem5 ARM64 memory map
-   and keep it consistent with `docs/Enunciado.md` / `README.md`'s memory map.
+3. The driver (`../program/src/main.c`) already fixes the memory map — match it
+   exactly in the gem5 config (see `README.md`'s "GEM5 MMIO map"):
+   accelerator control at `0x10000000`, input image DRAM at `0x80000000`,
+   output image DRAM at `0x80600000`.
 4. Point gem5 at the cross-compiled binary from `../program`.
