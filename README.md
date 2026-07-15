@@ -247,7 +247,15 @@ Base offset is the accelerator's peripheral base in the Vivado/Vitis address edi
 
 ### GEM5 MMIO map
 
-TBD — to be filled in once `virtual-prototype/gem5/configs/kv260_arm64.py` assigns the accelerator's base address in the ARM64 memory map.
+Fixed by the driver ([`virtual-prototype/program/src/main.c`](virtual-prototype/program/src/main.c)); the gem5 ARM64 config must place the accelerator and DRAM at these same addresses:
+
+| Region | Base Address | Size | Notes |
+|---|---|---|---|
+| Accelerator control | `0x10000000` | one page (4 KiB) | `CTRL` @ `+0x00` (bit0 `ap_start`, bit1 `ap_done`), `RGB_IN_ADDR` @ `+0x10`, `GRAY_OUT_ADDR` @ `+0x18`, `NUM_PIXELS` @ `+0x20` |
+| Input RGB image | `0x80000000` | 6,220,800 B | DRAM |
+| Output grayscale image | `0x80600000` | 2,073,600 B | DRAM |
+
+The driver accesses all three via `mmap()` on `/dev/mem` (requires root) — no kernel driver is used. Whoever wires the gem5 TLM bridge should place the `Accelerator`'s target socket at `0x10000000` and back the two image regions with gem5's DRAM at the addresses above.
 
 ---
 

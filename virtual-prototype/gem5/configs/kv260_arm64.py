@@ -1,11 +1,17 @@
 """gem5 config skeleton: ARM64 system with the SystemC/TLM accelerator
 attached as an MMIO peripheral via gem5's SystemC co-simulation bridge.
 
-Scaffolding only. TODO for the team:
+Scaffolding only. Memory map is fixed by ../../program/src/main.c and must
+match here:
+  - Accelerator control (AXI4-Lite):  0x10000000, one page
+  - Input RGB image (DRAM):           0x80000000, 6,220,800 B
+  - Output grayscale image (DRAM):    0x80600000, 2,073,600 B
+
+TODO for the team:
   - Build gem5 with SystemC/TLM co-simulation support enabled.
   - Instantiate the ARM64 CPU, memory bus and DRAM.
   - Bind the Accelerator's TLM sockets (see ../../systemc-model/src/accelerator)
-    to the gem5-side TLM<->gem5 bridge at the chosen MMIO base address.
+    to the gem5-side TLM<->gem5 bridge at the addresses above.
   - Load the cross-compiled binary from ../../program as the workload.
 
 Usage (once implemented): gem5.opt configs/kv260_arm64.py --binary=<path>
