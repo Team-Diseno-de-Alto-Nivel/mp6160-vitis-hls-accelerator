@@ -30,6 +30,25 @@ else()
     set(SYSTEMC_LIB SystemC::systemc)
 endif()
 
+# ── Shared configuration ──────────────────────────────────────────────────────
+# ../common holds the memory map and image format, shared with the ARM64 driver
+# and mirrored by the gem5 config. Absolute path so the sim finds the images
+# regardless of the working directory it is launched from.
+set(COMMON_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../common)
+set(IMAGES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../images)
+
+# ── Accelerator library ───────────────────────────────────────────────────────
+# Kept separate so the gem5 SystemC build (scons EXTRAS=...) compiles the very
+# same source instead of a copy.
+add_library(accelerator_sc STATIC
+    src/accelerator/accelerator.cpp
+)
+target_include_directories(accelerator_sc PUBLIC
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${COMMON_DIR}
+)
+target_link_libraries(accelerator_sc PUBLIC ${SYSTEMC_LIB})
+
 # ── Main simulation executable ────────────────────────────────────────────────
 add_executable(sim
     src/main.cpp
@@ -37,7 +56,7 @@ add_executable(sim
     src/bus/bus.cpp
     src/ram/ram.cpp
     src/disk/disk.cpp
-    src/accelerator/accelerator.cpp
 )
-target_include_directories(sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(sim ${SYSTEMC_LIB})
+target_include_directories(sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${COMMON_DIR})
+target_compile_definitions(sim PRIVATE IMAGES_DIR="${IMAGES_DIR}")
+target_link_libraries(sim accelerator_sc ${SYSTEMC_LIB})

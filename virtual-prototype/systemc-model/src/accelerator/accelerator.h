@@ -5,6 +5,7 @@
 #include <tlm_utils/simple_target_socket.h>
 #include <tlm_utils/simple_initiator_socket.h>
 #include <cstdint>
+#include "memory_map.h"
 
 SC_MODULE(Accelerator)
 {
@@ -12,18 +13,24 @@ public:
     tlm_utils::simple_target_socket<Accelerator> target_socket;
     tlm_utils::simple_initiator_socket<Accelerator> init_socket;
 
-    SC_CTOR(Accelerator);
+    // AXI4-Lite control block, same register layout Vitis HLS generates for
+    // grayscale_accel() — see memory_map.h. Driven both by the standalone CPU
+    // module and, through gem5's TLM bridge, by the ARM64 driver.
+    //
+    // base_addr is a parameter because both the SystemC bus and the gem5
+    // bridge deliver absolute addresses, but the peripheral may sit at a
+    // different base in each topology.
+    Accelerator(sc_core::sc_module_name name, uint64_t base_addr = ACCEL_BASE);
 
 private:
-    // Config transaction: WRITE de 24 bytes al address 0x10000000
-    // Offset  +0 (8 B): src_addr    — dirección base input RGB en RAM
-    // Offset  +8 (8 B): dst_addr    — dirección base output grayscale en RAM
-    // Offset +16 (8 B): pixel_count — total de píxeles a procesar
     void b_transport(tlm::tlm_generic_payload & payload, sc_core::sc_time & delay);
-    void process_image(uint64_t src_addr, uint64_t dst_addr, uint64_t pixel_count);
-    void write_status_register(uint32_t status);
+    void process_image(uint32_t src_addr, uint32_t dst_addr, uint32_t pixel_count);
     uint8_t rgb_to_gray(uint8_t r, uint8_t g, uint8_t b);
 
-    uint32_t status_register = 0;
-    static constexpr uint64_t STATUS_ADDR = 0x10000018ULL;
+    const uint64_t base_addr;
+
+    uint32_t ctrl_register = 0;
+    uint32_t src_register = 0;
+    uint32_t dst_register = 0;
+    uint32_t npix_register = 0;
 };

@@ -10,8 +10,10 @@ This repo continues [mp6160-systemc-tlm-image-accelerator](https://github.com/Te
 ## Non-obvious constraints
 
 - **Two parallel accelerator implementations, same semantics**: `hls/` (Vitis HLS, synthesizable, targets the Kria KV260) and `virtual-prototype/systemc-model/src/accelerator` (behavioral SystemC/TLM, carried over from the previous evaluation). Keep both computing the same BT.601 grayscale conversion so results are comparable.
-- **`virtual-prototype/systemc-model` is a standalone regression sim**: it still runs CPU+Bus+RAM+Disk+Accelerator exactly like the previous evaluation (`make run` there works with no gem5/HLS dependency). Don't break it while building the gem5 integration alongside it.
-- **`virtual-prototype/gem5` + `virtual-prototype/program` are scaffolding, not yet implemented**: the ARM64 system config, the TLM<->gem5 bridge wiring, and the C driver's register access are all left as TODOs on purpose — do not fill them in unless explicitly asked to implement that functionality.
+- **`virtual-prototype/common/memory_map.h` is the single source of truth for every address in the system**: the SystemC model and the C driver `#include` it, and the gem5 config parses it at startup. Never hardcode an address or register offset anywhere else — that is exactly how the accelerator, the driver and the docs previously ended up with three mutually incompatible register layouts.
+- **`virtual-prototype/systemc-model` is a standalone regression sim**: it runs CPU+Bus+RAM+Disk+Accelerator with no gem5/HLS dependency, and its output is byte-identical to the previous evaluation's verified result. `make run-model && make check` is the fastest way to prove a change to the accelerator did not alter behaviour. Don't break it.
+- **The gem5 path does not use the SystemC `Bus`**: gem5's membus does the address decode, and `gem5/src/SConscript` compiles the *same* `accelerator.cpp` the standalone sim builds. Never fork the accelerator into a gem5-specific copy.
+- **The `hls/` kernel body is still a TODO on purpose** (`hls/src/grayscale_accel.cpp`) — that is tracks #1–#3, owned by other teammates. Don't fill it in unless explicitly asked.
 - **Image format**: RAW binary, no header, 3 bytes/pixel RGB, row-major, 1920×1080. Total: 6,220,800 bytes input, 2,073,600 bytes output.
 - **AI usage must be declared** in the README (prompts + type of use). Omitting it is treated as plagiarism per @docs/Enunciado.md.
 
