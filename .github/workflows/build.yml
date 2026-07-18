@@ -1,0 +1,57 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  systemc-model:
+    name: Standalone SystemC model
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+      - name: Build + run the simulation
+        run: |
+          cd virtual-prototype/systemc-model
+          make run
+
+  arm64-driver:
+    name: ARM64 driver (cross-compile)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install aarch64 cross-compiler
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
+      - name: Cross-compile the driver
+        run: |
+          cd virtual-prototype/program
+          make
+
+  hls-compile-check:
+    name: HLS kernel + testbench (host compile check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile with host g++
+        run: |
+          # Vitis HLS isn't available in CI, so this only catches syntax/type
+          # errors in the kernel and testbench — not synthesis or co-simulation.
+          g++ -std=c++17 -Wall -c hls/src/grayscale_accel.cpp -o /tmp/grayscale_accel.o
+          g++ -std=c++17 -Wall -I hls/src -c hls/tb/grayscale_accel_tb.cpp -o /tmp/grayscale_accel_tb.o
+
+  gem5-config-lint:
+    name: GEM5 config (syntax check)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Python syntax check
+        run: |
+          # gem5 itself isn't built in CI (compiling it from source is too slow
+          # for a per-PR check), so this only catches Python syntax errors.
+          python3 -m py_compile virtual-prototype/gem5/configs/*.py

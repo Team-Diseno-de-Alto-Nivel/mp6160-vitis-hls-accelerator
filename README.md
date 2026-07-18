@@ -63,6 +63,15 @@ docker build -t vitis-hls-accel .devcontainer/
 docker run -it --rm -v $(pwd):/workspace -w /workspace vitis-hls-accel make run-model
 ```
 
+### CI/CD
+
+[`.github/workflows/build.yml`](.github/workflows/build.yml) runs on every push to `main` and every pull request, and validates compilation only (no Vitis/gem5 install in CI):
+
+- builds and runs the standalone SystemC model,
+- cross-compiles the ARM64 driver,
+- compiles the HLS kernel + testbench with the host `g++` (catches syntax/type errors — not a substitute for `csim`/`csynth` in real Vitis HLS),
+- checks the gem5 config's Python syntax.
+
 ---
 
 ## Repository Organization
