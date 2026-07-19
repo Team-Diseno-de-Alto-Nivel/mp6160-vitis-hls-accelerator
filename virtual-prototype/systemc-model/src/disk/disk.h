@@ -4,8 +4,12 @@
 #include <tlm>
 #include <tlm_utils/simple_target_socket.h>
 #include <cstdint>
-#include <vector>
-#include <map>
+#include "memory_map.h"
+
+/* Absolute path injected by CMake so the sim runs from any working directory. */
+#ifndef IMAGES_DIR
+#define IMAGES_DIR "images"
+#endif
 
 SC_MODULE(Disk) {
 public:
@@ -14,9 +18,11 @@ public:
     SC_CTOR(Disk);
 
 private:
-    // Mock storage: address → data mapping
-    std::map<uint64_t, std::vector<uint8_t>> storage;
-
     void b_transport(tlm::tlm_generic_payload& payload, sc_core::sc_time& delay);
-    void validate_write(uint64_t addr, unsigned int size);
+
+    static constexpr const char* INPUT_PATH  = IMAGES_DIR "/input/image.raw";
+    static constexpr const char* OUTPUT_PATH = IMAGES_DIR "/output/output.raw";
+
+    static constexpr uint64_t DISK_INPUT_ADDR  = DISK_BASE + DISK_IMG_IN;
+    static constexpr uint64_t DISK_OUTPUT_ADDR = DISK_BASE + DISK_IMG_OUT;
 };

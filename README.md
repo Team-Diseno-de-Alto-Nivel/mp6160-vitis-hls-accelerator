@@ -38,7 +38,20 @@ make run      # configure + compile + run the simulation
 
 ### Virtual prototype — GEM5 + ARM64
 
-Status: **scaffolding only**, see [`virtual-prototype/gem5/README.md`](virtual-prototype/gem5/README.md) and [`virtual-prototype/program`](virtual-prototype/program) for what's pending (ARM64 system config, TLM↔gem5 bridge wiring, driver register access).
+The accelerator is compiled **into** gem5 (`scons EXTRAS=`) from the same source
+the standalone sim uses, and attached as an MMIO peripheral through gem5's
+SystemC/TLM bridges. Requires a gem5 **source tree** — a `gem5.opt` on `$PATH` is
+not enough. See [`virtual-prototype/gem5/README.md`](virtual-prototype/gem5/README.md)
+for the topology and the SE-vs-FS rationale.
+
+```bash
+make gem5   GEM5_ROOT=/path/to/gem5   # build gem5 with the accelerator compiled in
+make run-vp GEM5_ROOT=/path/to/gem5   # cross-compile the driver, then run the system
+make check                            # verify the output against the BT.601 reference
+```
+
+The driver is cross-compiled for gem5 SE mode by default. For the real KV260,
+configure it with `-DGEM5_SE=OFF` to restore the `mmap(/dev/mem)` path:
 
 ```bash
 cd virtual-prototype/program
@@ -56,7 +69,7 @@ vitis_hls -f run_hls.tcl
 
 ### Development Container
 
-The repository ships the same dev container as the previous evaluation (SystemC + host C++ toolchain). Vitis HLS and gem5 are **not** containerized here — they require their own installs/licenses and are run outside the dev container.
+Carries the previous evaluation's dev container (SystemC 2.3.4 prebuilt at `/opt/systemc`), plus the `aarch64-linux-gnu` cross-toolchain the ARM64 driver needs and Pillow/numpy for `scripts/`. Vitis HLS and gem5 are **not** containerized — they need their own installs/licenses and are run outside it.
 
 ```bash
 docker build -t vitis-hls-accel .devcontainer/
@@ -92,14 +105,19 @@ docker run -it --rm -v $(pwd):/workspace -w /workspace vitis-hls-accel make run-
 │   │   └── grayscale_accel_tb.cpp   # Co-simulation testbench skeleton
 │   └── scripts/
 │       └── run_hls.tcl              # csim -> csynth -> cosim -> export_design
+├── scripts/                         # prepare_input / raw_to_jpg / jpg_to_raw / check_output
 ├── virtual-prototype/               # Virtual prototype track (SystemC/TLM + GEM5/ARM64)
+│   ├── common/                       # Memory map + image format — shared by the model, the
+│   │   ├── memory_map.h              #   driver (C) and the gem5 config (parsed). Single
+│   │   └── image_config.h            #   source of truth for every address in the system.
 │   ├── systemc-model/                # Standalone TLM 2.0 model, carried over from the prior evaluation
 │   │   └── src/{cpu,bus,ram,disk,accelerator,utils}/
-│   ├── gem5/                         # GEM5 ARM64 system + TLM<->gem5 bridge (scaffolding)
-│   │   └── configs/kv260_arm64.py
+│   ├── gem5/                         # GEM5 ARM64 system + TLM<->gem5 bridge
+│   │   ├── configs/kv260_arm64.py    #   SE-mode ARM64 system + bridges + identity maps
+│   │   └── src/                      #   SimObject glue compiled into gem5 (scons EXTRAS=)
 │   └── program/                      # C driver cross-compiled for ARM64, run by the gem5 core
 │       └── src/main.c
-├── Makefile                          # Delegates to systemc-model / program / hls
+├── Makefile                          # Delegates to systemc-model / program / gem5 / hls
 └── README.md
 ```
 
@@ -132,13 +150,13 @@ classDiagram
     SC_Bus --> SC_Accelerator : target
 
     GEM5_ARM64_CPU --> ARM64_Driver_Program : executes
-    GEM5_ARM64_CPU --> SC_Accelerator : TLM 2.0 (via gem5 bridge, TODO)
+    GEM5_ARM64_CPU --> SC_Accelerator : TLM 2.0 (via gem5 bridge)
 ```
 
 | Module | Location | Role | Responsibility |
 |---|---|---|---|
 | **HLS kernel** | `hls/src/` | Synthesizable accelerator | RGB→grayscale, AXI4 (MM/Stream) data + AXI4-Lite control, pipelined |
-| **SC Accelerator** | `virtual-prototype/systemc-model/src/accelerator/` | TLM target | Same accelerator behavior, in SystemC, reused by both the standalone sim and (pending) the gem5 bridge |
+| **SC Accelerator** | `virtual-prototype/systemc-model/src/accelerator/` | TLM target | Same accelerator behavior, in SystemC. The exact same source is compiled into both the standalone sim and gem5 |
 | **SC CPU/Bus/RAM/Disk** | `virtual-prototype/systemc-model/src/{cpu,bus,ram,disk}` | TLM initiator/target | Standalone regression sim — unchanged from the previous evaluation |
 | **GEM5 ARM64 system** | `virtual-prototype/gem5/` | — | Replaces `SC CPU` with a real simulated ARM64 core; bridges its memory bus to the SC Accelerator over TLM 2.0 |
 | **ARM64 driver program** | `virtual-prototype/program/` | Software | C program run by the gem5 core; replaces `CPU::run()`'s behavioral logic with real MMIO register access |
@@ -170,7 +188,7 @@ Unchanged from the previous evaluation — see `virtual-prototype/systemc-model/
 
 ### GEM5 virtual prototype
 
-Replaces the behavioral `CPU` SystemC module with an actual ARM64 core simulated by gem5, running the C driver in `virtual-prototype/program`. The core's memory-mapped I/O to the accelerator's config registers is carried over gem5's SystemC/TLM co-simulation bridge to the same `Accelerator` TLM module used by the standalone model — implementation pending, see `virtual-prototype/gem5/README.md`.
+Replaces the behavioral `CPU` SystemC module with an actual ARM64 core simulated by gem5, running the C driver in `virtual-prototype/program`. The core's memory-mapped I/O to the accelerator's config registers is carried over gem5's SystemC/TLM bridges to the same `Accelerator` TLM module used by the standalone model — see `virtual-prototype/gem5/README.md` for the topology and the SE-mode rationale.
 
 ---
 
@@ -211,78 +229,122 @@ All inter-module communication in the virtual prototype uses the TLM 2.0 generic
 
 On the hardware side, the HLS kernel exposes an AXI4 (Memory-Mapped or Stream) data interface plus an AXI4-Lite control interface — see Memory Map below.
 
-### Accelerator configuration transaction (SystemC model, unchanged)
+### Accelerator configuration transactions
 
-A single 24-byte WRITE to the Accelerator's base address (`0x10000000`):
+The accelerator is programmed through the AXI4-Lite register block described in
+[Memory Map](#memory-map) — three 32-bit register WRITEs, then a WRITE of
+`ap_start`, then 32-bit READs of `CTRL` polling `ap_done`. Identical whether the
+initiator is the SystemC `CPU` module, the ARM64 driver through gem5's bridge,
+or the AXI4-Lite master on the KV260.
 
-| Offset | Size | Field |
-|---|---|---|
-| `+0` | 8 B | Source base address in RAM (input RGB) |
-| `+8` | 8 B | Destination base address in RAM (output grayscale) |
-| `+16` | 8 B | Total pixel count |
-
-Status is read back as a 4-byte value at `0x10000018`.
+> Changed from the previous evaluation, which used a single 24-byte config blob
+> plus a status register at `0x10000018`. That layout could not survive contact
+> with HLS: `s_axilite` generates individually addressable 32-bit registers, and
+> its `GRAY_OUT_ADDR` lands exactly on the old status address. Adapting the model
+> is what the assignment means by *"con algunas adaptaciones adicionales"*, and
+> it collapses the SystemC model, the driver and the HLS kernel onto one
+> programming model.
 
 ---
 
 ## Memory Map
 
-### Standalone SystemC model (unchanged from the previous evaluation)
+Single source of truth: [`virtual-prototype/common/memory_map.h`](virtual-prototype/common/memory_map.h).
+The SystemC model and the ARM64 driver both `#include` it, and the gem5 config
+parses it at startup — so the tables below cannot silently drift from the code.
+
+### Accelerator AXI4-Lite control registers
+
+Identical in all three implementations. Base is `0x10000000` in both the
+standalone model and the gem5 system; on the KV260 it is the peripheral base
+assigned in the Vivado/Vitis address editor (TBD once the block design is built).
+
+| Offset | Register | Access | Description |
+|---|---|---|---|
+| `0x00` | `CTRL` | R/W | bit0 `ap_start` (W), bit1 `ap_done` (R). HLS also drives bit2 `ap_idle`, bit3 `ap_ready`, bit7 `auto_restart` |
+| `0x10` | `RGB_IN_ADDR` | R/W | Base address of the input RGB image |
+| `0x18` | `GRAY_OUT_ADDR` | R/W | Base address of the output grayscale image |
+| `0x20` | `NUM_PIXELS` | R/W | Total pixels to process |
+
+Addresses are 32-bit — `run_hls.tcl` sets `config_interface -m_axi_addr64=0`.
+Flipping that to 1 adds upper-half registers at `+0x14`/`+0x1c` and this table
+must grow with it.
+
+> Vitis HLS additionally generates the interrupt block (`GIER` @ `0x04`,
+> `IER` @ `0x08`, `ISR` @ `0x0C`); the SystemC model does not implement it, since
+> both the driver and the `CPU` module poll `ap_done` rather than use interrupts.
+> The `RGB_IN_ADDR`/`GRAY_OUT_ADDR`/`NUM_PIXELS` offsets are auto-generated by
+> `v++`/Vitis HLS from the kernel's argument order (see `hls/src/grayscale_accel.cpp`)
+> — confirm them against the exported driver header (`xgrayscale_accel_hw.h` under
+> `hls/scripts/grayscale_accel_prj/solution1/impl/`) once synthesis has run, and
+> reconcile `memory_map.h` if they differ.
+
+### Standalone SystemC model
 
 | Region | Base Address | Size | Module |
 |---|---|---|---|
 | Input RGB image | `0x00000000` | 6,220,800 B (~5.9 MB) | RAM |
 | Output grayscale image | `0x00600000` | 2,073,600 B (~1.9 MB) | RAM |
-| Accelerator config | `0x10000000` | 24 B | Accelerator |
-| Disk | `0x20000000` | — | Disk |
+| Accelerator control | `0x10000000` | 4 KiB | Accelerator |
+| Disk | `0x20000000` | — | Disk (`+0x0` input image, `+0x1000000` output) |
 
 RAM total capacity: 64 MB (`0x00000000`–`0x03FFFFFF`).
 
-### HLS AXI4-Lite control register map
-
-Base offset is the accelerator's peripheral base in the Vivado/Vitis address editor (TBD once the block design is built for the Kria KV260 — record it here once known).
-
-| Offset | Register | Access | Description |
-|---|---|---|---|
-| `0x00` | `CTRL` | R/W | bit0 `ap_start`, bit1 `ap_done`, bit2 `ap_idle`, bit3 `ap_ready`, bit7 `auto_restart` |
-| `0x04` | `GIER` | R/W | Global Interrupt Enable (bit0) |
-| `0x08` | `IER` | R/W | IP Interrupt Enable: bit0=`ap_done`, bit1=`ap_ready` |
-| `0x0C` | `ISR` | R/W1C | IP Interrupt Status |
-| `0x10` | `RGB_IN_ADDR` | R/W | Base address of the input RGB image in DDR |
-| `0x18` | `GRAY_OUT_ADDR` | R/W | Base address of the output grayscale image in DDR |
-| `0x20` | `NUM_PIXELS` | R/W | Total pixels to process |
-
-> Exact offsets for `RGB_IN_ADDR`/`GRAY_OUT_ADDR`/`NUM_PIXELS` are auto-generated by `v++`/Vitis HLS from the kernel's argument order (see `hls/src/grayscale_accel.cpp`) — confirm against the exported driver header (`xgrayscale_accel_hw.h` or equivalent under `hls/scripts/grayscale_accel_prj/solution1/impl/`) once synthesis has run, and update this table if they differ.
-
 ### GEM5 MMIO map
-
-Fixed by the driver ([`virtual-prototype/program/src/main.c`](virtual-prototype/program/src/main.c)); the gem5 ARM64 config must place the accelerator and DRAM at these same addresses:
 
 | Region | Base Address | Size | Notes |
 |---|---|---|---|
-| Accelerator control | `0x10000000` | one page (4 KiB) | `CTRL` @ `+0x00` (bit0 `ap_start`, bit1 `ap_done`), `RGB_IN_ADDR` @ `+0x10`, `GRAY_OUT_ADDR` @ `+0x18`, `NUM_PIXELS` @ `+0x20` |
-| Input RGB image | `0x80000000` | 6,220,800 B | DRAM |
-| Output grayscale image | `0x80600000` | 2,073,600 B | DRAM |
+| Accelerator control | `0x10000000` | 4 KiB | Behind `Gem5ToTlmBridge32` |
+| Input RGB image | `0x80000000` | 6,220,800 B | `SimpleMemory`, identity-mapped into the driver |
+| Output grayscale image | `0x80600000` | 2,073,600 B | same region |
+| Process heap/stack | `0x100000000` | 512 MiB | `system.mem_ranges` — kept away from the buffers so gem5's SE page allocator cannot collide with the identity map |
 
-The driver accesses all three via `mmap()` on `/dev/mem` (requires root) — no kernel driver is used. Whoever wires the gem5 TLM bridge should place the `Accelerator`'s target socket at `0x10000000` and back the two image regions with gem5's DRAM at the addresses above.
+The accelerator reaches the buffers through whatever it is handed in
+`RGB_IN_ADDR`/`GRAY_OUT_ADDR` at runtime, which is why the same module works
+unchanged at both `0x00000000` (model) and `0x80000000` (gem5).
 
 ---
 
 ## Results
 
-_Not yet available — hardware and gem5 integration are under development._
+### Standalone SystemC model — verified
+
+`make run-model` converts the real 1080p input through the full
+Disk → RAM → Accelerator → RAM → Disk flow.
+
+| Transfer | Expected | Actual | |
+|---|---|---|---|
+| Disk → RAM (input) | 6,220,800 B | 6,220,800 B | ✅ |
+| RAM → Disk (output) | 2,073,600 B | 2,073,600 B | ✅ |
+
+`make check` recomputes the BT.601 reference on the host from
+`images/input/image.raw` and compares byte for byte:
+
+```
+OK    images/output/output.raw  (standalone SystemC model): 2073600 pixels match BT.601
+```
+
+The output is also bit-identical to the previous evaluation's verified result
+(`sha256 e244fefe…`), which confirms that moving the accelerator from the
+24-byte config blob to the AXI4-Lite register block did not change its
+behaviour.
 
 ### Output image
 
 <!-- Side-by-side comparison of the input RGB image and the HLS/gem5 output. -->
 
-### HLS synthesis / co-simulation report
-
-<!-- Resource utilization (LUT/FF/BRAM/DSP), timing closure at 250 MHz, cosim latency. -->
-
 ### GEM5 simulation log
 
-<!-- Paste relevant gem5 stdout/stats.txt excerpts once the ARM64 + TLM bridge run end to end. -->
+_Pending a first run — needs a gem5 source tree (`make gem5 GEM5_ROOT=…`). The
+config, the SimObject glue and the SE-mode driver path are implemented; see
+[`virtual-prototype/gem5/README.md`](virtual-prototype/gem5/README.md) for the
+one known risk to validate on that run._
+
+### HLS synthesis / co-simulation report
+
+_Pending — the kernel pipeline body is still a TODO in `hls/src/grayscale_accel.cpp`._
+
+<!-- Resource utilization (LUT/FF/BRAM/DSP), timing closure at 250 MHz, cosim latency. -->
 
 ---
 

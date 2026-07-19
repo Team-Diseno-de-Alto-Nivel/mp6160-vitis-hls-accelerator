@@ -23,11 +23,12 @@ void CPU::run() {
     store_image_to_ram(input_image);
 
     // Configure accelerator
-    configure_accelerator(ram_base_addr + INPUT_IMAGE_RAM_ADDR,
-                          ram_base_addr + OUTPUT_IMAGE_RAM_ADDR,
-                          PIXEL_COUNT);
+    configure_accelerator(static_cast<uint32_t>(ram_base_addr + INPUT_IMAGE_RAM_ADDR),
+                          static_cast<uint32_t>(ram_base_addr + OUTPUT_IMAGE_RAM_ADDR),
+                          static_cast<uint32_t>(PIXEL_COUNT));
 
-    // Wait for accelerator to finish
+    // Start it and wait for completion
+    start_accelerator();
     wait_accelerator_ready();
 
     // Read the processed image from RAM
@@ -73,31 +74,37 @@ void CPU::store_image_to_ram(const std::vector<uint8_t>& buffer) {
               tlm::TLM_WRITE_COMMAND);
 }
 
-void CPU::configure_accelerator(uint64_t src_addr, uint64_t dst_addr, uint64_t pixel_count) {
-    uint64_t config[3];
-    config[0] = src_addr;
-    config[1] = dst_addr;
-    config[2] = pixel_count;
-
-    transport(accel_base_addr + ACCEL_CONFIG_ADDR,
-              reinterpret_cast<unsigned char*>(config),
-              static_cast<unsigned int>(sizeof(config)),
+void CPU::write_accel_register(uint64_t offset, uint32_t value) {
+    transport(accel_base_addr + offset,
+              reinterpret_cast<unsigned char*>(&value),
+              sizeof(value),
               tlm::TLM_WRITE_COMMAND);
 }
 
+uint32_t CPU::read_accel_register(uint64_t offset) {
+    uint32_t value = 0;
+    transport(accel_base_addr + offset,
+              reinterpret_cast<unsigned char*>(&value),
+              sizeof(value),
+              tlm::TLM_READ_COMMAND);
+    return value;
+}
+
+void CPU::configure_accelerator(uint32_t src_addr, uint32_t dst_addr, uint32_t pixel_count) {
+    write_accel_register(ACCEL_REG_SRC, src_addr);
+    write_accel_register(ACCEL_REG_DST, dst_addr);
+    write_accel_register(ACCEL_REG_NPIX, pixel_count);
+}
+
+void CPU::start_accelerator() {
+    write_accel_register(ACCEL_REG_CTRL, ACCEL_CTRL_AP_START);
+}
+
 void CPU::wait_accelerator_ready() {
-    uint32_t status = 0;
     const sc_core::sc_time poll_interval = sc_core::sc_time(100, sc_core::SC_NS);
 
-    while (status == 0) {
-        transport(accel_base_addr + ACCEL_STATUS_ADDR,
-                  reinterpret_cast<unsigned char*>(&status),
-                  sizeof(uint32_t),
-                  tlm::TLM_READ_COMMAND);
-
-        if (status == 0) {
-            sc_core::wait(poll_interval);
-        }
+    while ((read_accel_register(ACCEL_REG_CTRL) & ACCEL_CTRL_AP_DONE) == 0) {
+        sc_core::wait(poll_interval);
     }
 }
 

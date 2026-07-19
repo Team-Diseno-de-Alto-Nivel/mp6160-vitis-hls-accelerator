@@ -7,6 +7,13 @@ RUN apt-get update && apt-get install -y \
     cmake \
     git \
     curl \
+    # Cross-toolchain for the ARM64 driver in virtual-prototype/program,
+    # without which `make program` (and therefore `make all`) cannot run here.
+    gcc-aarch64-linux-gnu \
+    # Pillow/numpy back the RAW <-> JPG helpers in scripts/.
+    python3 \
+    python3-pil \
+    python3-numpy \
     && rm -rf /var/lib/apt/lists/*
 
 # Pre-compile SystemC 2.3.4 so project builds skip the download step
