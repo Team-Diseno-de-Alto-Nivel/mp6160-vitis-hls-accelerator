@@ -5,8 +5,8 @@
 open_project -reset grayscale_accel_prj
 set_top grayscale_accel
 
-add_files       ../src/grayscale_accel.cpp -cflags "-std=c++14"
-add_files -tb   ../tb/grayscale_accel_tb.cpp -cflags "-std=c++14"
+add_files       ../src/grayscale_accel.cpp -cflags "-std=c++17"
+add_files -tb   ../tb/grayscale_accel_tb.cpp -cflags "-std=c++17"
 
 open_solution -reset "solution1" -flow_target vivado
 
