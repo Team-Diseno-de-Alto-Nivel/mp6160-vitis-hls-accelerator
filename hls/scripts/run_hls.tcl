@@ -2,6 +2,12 @@
 # Usage: vitis_hls -f hls/scripts/run_hls.tcl
 # Target: AMD Kria KV260 (K26 SOM, part xck26-sfvc784-2LV-c), 250 MHz.
 
+# Absolute path to the input image, computed from this script's own location
+# so it doesn't depend on Vitis's internal csim/cosim working directory depth.
+set script_dir  [file dirname [file normalize [info script]]]
+set repo_root   [file normalize [file join $script_dir .. ..]]
+set input_image [file join $repo_root images input input_1080p.raw]
+
 open_project -reset grayscale_accel_prj
 set_top grayscale_accel
 
@@ -19,16 +25,16 @@ create_clock -period 4 -name default
 config_interface -m_axi_addr64=0
 
 # C simulation: run the pure-software model against the golden BT.601 check
-csim_design -argv {../../../../../../images/input/input_1080p.raw}
+csim_design -argv $input_image
 
 # High-level synthesis: generates RTL + pipeline/dataflow reports
 csynth_design
 
-# C/RTL co-simulation: runs the same testbench through the generated RTL
-# NOTE: -argv path depth assumed same as csim_design (verified for csim's
-# build/ dir); re-verify once the kernel body (depth= on m_axi pragmas) is
-# implemented and cosim_design can actually run to completion.
-cosim_design -argv {../../../../../../images/input/input_1080p.raw}
+# C/RTL co-simulation: runs the same testbench through the generated RTL.
+# NOTE: cosim itself still can't be verified end-to-end until the kernel body
+# implements the pipeline (m_axi ports need depth= for cosim to run at all);
+# the $input_image path above is directory-independent, so it isn't affected.
+cosim_design -argv $input_image
 
 # Export as a Vivado IP-catalog IP (drag into the KV260 block design)
 export_design -rtl verilog -format ip_catalog -output grayscale_accel_hls_ip
