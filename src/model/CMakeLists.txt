@@ -41,22 +41,22 @@ set(IMAGES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../../images)
 # Kept separate so the gem5 SystemC build (scons EXTRAS=...) compiles the very
 # same source instead of a copy.
 add_library(accelerator_sc STATIC
-    src/accelerator/accelerator.cpp
+    accelerator/accelerator.cpp
 )
 target_include_directories(accelerator_sc PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${CMAKE_CURRENT_SOURCE_DIR}
     ${COMMON_DIR}
 )
 target_link_libraries(accelerator_sc PUBLIC ${SYSTEMC_LIB})
 
 # ── Main simulation executable ────────────────────────────────────────────────
 add_executable(sim
-    src/main.cpp
-    src/cpu/cpu.cpp
-    src/bus/bus.cpp
-    src/ram/ram.cpp
-    src/disk/disk.cpp
+    main.cpp
+    cpu/cpu.cpp
+    bus/bus.cpp
+    ram/ram.cpp
+    disk/disk.cpp
 )
-target_include_directories(sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src ${COMMON_DIR})
+target_include_directories(sim PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${COMMON_DIR})
 target_compile_definitions(sim PRIVATE IMAGES_DIR="${IMAGES_DIR}")
 target_link_libraries(sim accelerator_sc ${SYSTEMC_LIB})

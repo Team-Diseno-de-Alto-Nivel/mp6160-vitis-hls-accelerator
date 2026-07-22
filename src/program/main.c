@@ -2,7 +2,7 @@
  * ARM64 driver program, run by the simulated core in gem5.
  *
  * Mirrors the flow implemented by CPU::run() in
- * ../../systemc-model/src/cpu/cpu.cpp (load -> store -> configure -> start ->
+ * ../../model/cpu/cpu.cpp (load -> store -> configure -> start ->
  * poll -> fetch -> save), but here it is real software issuing loads/stores to
  * the accelerator's AXI4-Lite control registers and to the DRAM regions
  * holding the image, instead of SystemC TLM calls.

@@ -2,7 +2,7 @@
 """Check generated grayscale images against the BT.601 reference.
 
 Recomputes the reference on the host from images/input/image.raw using the same
-arithmetic as virtual-prototype/systemc-model/src/utils/conversion.h (float32
+arithmetic as src/model/utils/conversion.h (float32
 weights, round-half-away-from-zero) and compares every output found in
 images/output/ byte for byte.
 
@@ -20,6 +20,7 @@ import numpy as np
 OUTPUTS = {
     "output.raw": "standalone SystemC model",
     "output_gem5.raw": "gem5 virtual prototype",
+    "output_hls.raw": "HLS co-simulation",
 }
 
 

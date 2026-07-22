@@ -14,7 +14,7 @@ void grayscale_accel(
 
     // TODO: implement the pipeline here, split into:
     //   - input stage:  burst-read RGB pixels from rgb_in
-    //   - compute stage: RGB -> grayscale (see virtual-prototype/systemc-model/src/utils/conversion.h
+    //   - compute stage: RGB -> grayscale (see src/model/utils/conversion.h
     //     for the BT.601 reference formula used by the golden model)
     //   - output stage: burst-write grayscale pixels to gray_out
     // Requirement: stages must be clearly separated (e.g. hls::stream + #pragma HLS DATAFLOW).

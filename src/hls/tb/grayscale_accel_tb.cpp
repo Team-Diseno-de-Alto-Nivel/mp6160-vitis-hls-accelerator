@@ -1,12 +1,12 @@
 // Co-simulation testbench skeleton for grayscale_accel.
 // TODO: team fills in comparison against the golden model (see
-// virtual-prototype/systemc-model/src/utils/conversion.h) and reports pass/fail.
+// src/model/utils/conversion.h) and reports pass/fail.
 // Co-simulation testbench for grayscale_accel
 
-#include "../src/grayscale_accel.h"
+#include "../grayscale_accel.h"
 
 // Golden model from the SystemC virtual prototype
-#include "../../virtual-prototype/systemc-model/src/utils/conversion.h"
+#include "../../model/utils/conversion.h"
 
 #include <cstdio>
 #include <vector>
@@ -14,10 +14,12 @@
 
 int main(int argc, char **argv)
 {
+    // run_hls.tcl passes an absolute path via -argv; this default only applies
+    // when the testbench is run by hand from the repo root.
     const char *input_path =
         (argc > 1)
             ? argv[1]
-            : "../../images/input/input_1080p.raw";
+            : "images/input/image.raw";
 
     const uint32_t width = 1920;
     const uint32_t height = 1080;
@@ -112,8 +114,10 @@ int main(int argc, char **argv)
     //---------------------------------------------------------
     // Write output image
     //---------------------------------------------------------
+    const char *output_path =
+        (argc > 2) ? argv[2] : "images/output/output_hls.raw";
     FILE *out =
-        fopen("../../images/output/output_1080p.raw", "wb");
+        fopen(output_path, "wb");
 
     if (!out)
     {
@@ -140,7 +144,7 @@ int main(int argc, char **argv)
         printf("TEST PASSED\n");
         printf("Processed %u pixels successfully.\n",
                num_pixels);
-        printf("Output image written to images/output/output_1080p.raw\n");
+        printf("Output image written to %s\n", output_path);
         printf("=====================================\n");
 
         return 0;

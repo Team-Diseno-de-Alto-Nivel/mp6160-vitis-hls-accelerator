@@ -130,7 +130,7 @@ def main():
 
     # Identity-map the peripheral and the image buffers into the driver's page
     # table. This is what replaces mmap()/dev/mem: the driver dereferences these
-    # physical addresses directly (see program/src/main.c, GEM5_SE path).
+    # physical addresses directly (see program/main.c, GEM5_SE path).
     process.map(mmap["ACCEL_BASE"], mmap["ACCEL_BASE"], mmap["ACCEL_REGION_SIZE"], False)
     process.map(mmap["GEM5_IMG_IN"], mmap["GEM5_IMG_IN"], image_region_size, True)
 

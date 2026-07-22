@@ -10,7 +10,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 option(GEM5_SE "Build for gem5 SE mode instead of real hardware" ON)
 
 add_executable(driver
-    src/main.c
+    main.c
 )
 
 # ../common holds the memory map and image format, shared with the SystemC model.
