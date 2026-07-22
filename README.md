@@ -63,12 +63,27 @@ make          # cross-compiles the ARM64 driver with aarch64-linux-gnu-gcc
 
 ### HLS (Vitis 2024.1)
 
-Status: **scaffolding only** — kernel interfaces/pragmas and the co-simulation flow are wired up, the RGB→grayscale pipeline body is a TODO. Target: Kria KV260 (`xck26-sfvc784-2LV-c`), 250 MHz.
+The kernel is a 3-stage `#pragma HLS DATAFLOW` pipeline — `read_rgb` (m_axi burst
+read) → `compute_gray` (BT.601) → `write_gray` (m_axi burst write) — with an
+AXI4-Lite control bundle. Target: Kria KV260 (`xck26-sfvc784-2LV-c`), 250 MHz.
+The full csim → csynth → cosim → export flow needs Vitis:
 
 ```bash
 cd src/hls/scripts
 vitis_hls -f run_hls.tcl
 ```
+
+Without Vitis you can still validate the kernel's **functional** correctness: it
+compiles under plain host g++ (`hls::stream` falls back to a shim), so
+
+```bash
+make hls-host    # compile the kernel + testbench, run on the 1080p image
+make check       # verify output_hls.raw byte-for-byte against BT.601
+```
+
+runs the same testbench used for co-simulation and checks the result against the
+golden. This does **not** cover synthesis, timing (250 MHz) or the AXI RTL —
+those still require Vitis HLS.
 
 ### Development Container
 
@@ -115,7 +130,7 @@ docker run -it --rm -v $(pwd):/workspace -w /workspace vitis-hls-accel make run-
 │   │   ├── configs/kv260_arm64.py    #   SE-mode ARM64 system + bridges + identity maps
 │   │   ├── SConscript, Accelerator.py, accelerator_wrapper.{cc,hh}  # SimObject glue (scons EXTRAS=<repo>/src)
 │   └── hls/                          # Vitis HLS implementation (hardware track)
-│       ├── grayscale_accel.{h,cpp}   #   AXI interfaces wired; pipeline body TODO
+│       ├── grayscale_accel.{h,cpp}   #   3-stage HLS DATAFLOW pipeline (m_axi + s_axilite)
 │       ├── tb/grayscale_accel_tb.cpp #   Co-simulation testbench
 │       └── scripts/run_hls.tcl       #   csim -> csynth -> cosim -> export_design
 ├── Makefile                          # Delegates to src/model, src/program, src/gem5, src/hls
@@ -185,7 +200,7 @@ Unchanged from the previous evaluation — see `src/model/*`. CPU loads the imag
 
 ### HLS accelerator
 
-`grayscale_accel(rgb_in, gray_out, num_pixels)`, exposed over one or two `m_axi` ports (burst read/write to DDR) plus an `s_axilite` control bundle (base addresses + pixel count + `ap_start`/`ap_done`). The pipeline must separate the I/O stages (burst read/write) from the compute stage (RGB→gray) — implementation pending, see `src/hls/grayscale_accel.cpp`.
+`grayscale_accel(rgb_in, gray_out, num_pixels)`, exposed over two `m_axi` ports (burst read/write to DDR) plus an `s_axilite` control bundle (base addresses + pixel count + `ap_start`/`ap_done`). The pipeline separates the I/O stages from the compute stage as an `#pragma HLS DATAFLOW` region of three functions connected by `hls::stream` FIFOs: `read_rgb` (burst read) → `compute_gray` (RGB→gray, BT.601) → `write_gray` (burst write). See `src/hls/grayscale_accel.cpp`.
 
 ### GEM5 virtual prototype
 
@@ -343,7 +358,19 @@ one known risk to validate on that run._
 
 ### HLS synthesis / co-simulation report
 
-_Pending — the kernel pipeline body is still a TODO in `src/hls/grayscale_accel.cpp`._
+The kernel is implemented (3-stage `HLS DATAFLOW`). Functional correctness is
+verified on the host without Vitis — `make hls-host` runs the co-simulation
+testbench against the real 1080p image and `make check` confirms the output
+matches BT.601 byte-for-byte:
+
+```
+TEST PASSED — Processed 2073600 pixels successfully.
+OK    images/output/output_hls.raw  (HLS co-simulation): 2073600 pixels match BT.601
+```
+
+_The `csynth`/`cosim` reports (latency, II, resources, 250 MHz timing, AXI RTL)
+are pending a run on a machine with Vitis HLS 2024.1 — `cd src/hls/scripts &&
+vitis_hls -f run_hls.tcl`._
 
 <!-- Resource utilization (LUT/FF/BRAM/DSP), timing closure at 250 MHz, cosim latency. -->
 
