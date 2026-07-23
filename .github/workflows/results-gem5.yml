@@ -1,0 +1,93 @@
+name: Results (gem5 virtual prototype)
+
+# Builds gem5 with the accelerator compiled in (make gem5) inside the dev
+# container — which ships the gem5 source tree at /opt/gem5 — runs the ARM64
+# driver over TLM (make run-vp), verifies output_gem5.raw against BT.601, and
+# commits the simulation log + output image into README.md as github-actions[bot].
+#
+# Manual-only (workflow_dispatch): the first scons build of gem5 is ~30-60 min,
+# far too heavy for a per-PR check. Reruns are much faster thanks to the cached
+# build/ directory. This is the one path that has not yet completed end to end
+# (see src/gem5/README.md for the known SE-mode risk); a failure here surfaces
+# that rather than blocking anything.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Branch to run on and commit results to
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+concurrency:
+  group: results-gem5-${{ github.event.inputs.ref || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  gem5:
+    name: Build gem5 + run the virtual prototype
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.ref || github.ref_name }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build the dev container (gem5 source + toolchain)
+        uses: docker/build-push-action@v6
+        with:
+          context: .devcontainer
+          file: .devcontainer/Dockerfile
+          load: true
+          tags: vitis-hls-accel:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # gem5's scons output. Mounted over /opt/gem5/build so an incremental
+      # rebuild on the next run only recompiles what changed.
+      - name: Cache the gem5 build
+        uses: actions/cache@v4
+        with:
+          path: .gem5-build
+          key: gem5-build-${{ hashFiles('src/gem5/**', 'src/model/**', 'src/common/**') }}
+          restore-keys: |
+            gem5-build-
+
+      - name: Build gem5 and run the virtual prototype
+        run: |
+          mkdir -p .gem5-build images/output
+          docker run --rm \
+            -v "${{ github.workspace }}:/workspace" \
+            -v "${{ github.workspace }}/.gem5-build:/opt/gem5/build" \
+            -w /workspace \
+            vitis-hls-accel:ci \
+            bash -c '
+              set -e
+              make gem5
+              make run-vp | tee gem5.log
+              python3 scripts/check_output.py | tee check.log
+              python3 scripts/generate_results.py gem5 --run-log gem5.log --check-log check.log
+            '
+
+      - name: Take ownership of container-written files
+        run: sudo chown -R "$USER" README.md gem5.log check.log || true
+
+      - name: Commit gem5 results to the branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git diff --cached --quiet; then
+            echo "No result changes to commit"
+          else
+            git commit -m "ci: update gem5 virtual prototype results"
+            git push origin HEAD:${{ github.event.inputs.ref || github.ref_name }}
+          fi
