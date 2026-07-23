@@ -96,12 +96,15 @@ docker run -it --rm -v $(pwd):/workspace -w /workspace vitis-hls-accel make run-
 
 ### CI/CD
 
-[`.github/workflows/build.yml`](.github/workflows/build.yml) runs on every push to `main` and every pull request, and validates compilation only (no Vitis/gem5 install in CI):
+Three workflows under [`.github/workflows/`](.github/workflows/):
 
-- builds and runs the standalone SystemC model,
-- cross-compiles the ARM64 driver,
-- compiles the HLS kernel + testbench with the host `g++` (catches syntax/type errors — not a substitute for `csim`/`csynth` in real Vitis HLS),
-- checks the gem5 config's Python syntax.
+- **[`build.yml`](.github/workflows/build.yml)** — the compile gate, on every push to `main` and every PR. Builds + runs the standalone SystemC model, cross-compiles the ARM64 driver, compiles the HLS kernel + testbench with host `g++`, and checks the gem5 config's Python syntax. Validation only (no Vitis/gem5 install), so it fails a PR that breaks compilation.
+- **[`results.yml`](.github/workflows/results.yml)** — on every PR (and manual dispatch). Runs the model and the HLS host co-simulation, verifies both against BT.601, renders the grayscale output to JPG, and commits the regenerated result blocks + image back to the PR branch as `github-actions[bot]`. No numbers in the [Results](#results) section are ever hand-copied.
+- **[`results-gem5.yml`](.github/workflows/results-gem5.yml)** — manual `workflow_dispatch` only. Builds gem5 with the accelerator compiled in inside the dev container (`make gem5`, ~30–60 min; cached), runs the ARM64 driver over TLM (`make run-vp`), checks `output_gem5.raw`, and commits the simulation log block. Kept off the per-PR path because the gem5 build is heavy.
+
+Vitis HLS synthesis/co-simulation (csynth/cosim, 250 MHz timing, resources) **cannot** run on GitHub-hosted runners — no license/install — so that block in [Results](#results) is filled in by hand after running `vitis_hls -f run_hls.tcl` locally.
+
+Each stage writes its own `<!-- RESULTS:* -->` region via `scripts/generate_results.py`, so the fast (model/HLS) and heavy (gem5) workflows update the README independently without clobbering each other.
 
 ---
 
@@ -323,22 +326,33 @@ unchanged at both `0x00000000` (model) and `0x80000000` (gem5).
 
 ## Results
 
+> The tables, logs and images in this section between `<!-- RESULTS:* -->`
+> markers are regenerated and committed automatically by CI
+> ([`.github/workflows/`](.github/workflows/)) — the numbers are never
+> hand-copied. `scripts/generate_results.py` writes each stage's block
+> independently, so the model/HLS run and the (heavier) gem5 run update the
+> README without clobbering each other.
+
 ### Standalone SystemC model — verified
 
 `make run-model` converts the real 1080p input through the full
-Disk → RAM → Accelerator → RAM → Disk flow.
+Disk → RAM → Accelerator → RAM → Disk flow. Byte counts come from that run's log:
 
-| Transfer | Expected | Actual | |
+<!-- RESULTS:MODEL-DATA:START -->
+| Transfer | Expected | Actual | Match |
 |---|---|---|---|
 | Disk → RAM (input) | 6,220,800 B | 6,220,800 B | ✅ |
 | RAM → Disk (output) | 2,073,600 B | 2,073,600 B | ✅ |
+<!-- RESULTS:MODEL-DATA:END -->
 
 `make check` recomputes the BT.601 reference on the host from
 `images/input/image.raw` and compares byte for byte:
 
+<!-- RESULTS:MODEL-CHECK:START -->
 ```
 OK    images/output/output.raw  (standalone SystemC model): 2073600 pixels match BT.601
 ```
+<!-- RESULTS:MODEL-CHECK:END -->
 
 The output is also bit-identical to the previous evaluation's verified result
 (`sha256 e244fefe…`), which confirms that moving the accelerator from the
@@ -347,32 +361,67 @@ behaviour.
 
 ### Output image
 
-<!-- Side-by-side comparison of the input RGB image and the HLS/gem5 output. -->
+Input RGB (left) and the grayscale the pipeline produced (right), regenerated
+from `images/output/*.raw` on every CI run:
 
-### GEM5 simulation log
+<!-- RESULTS:OUTPUT-IMAGE:START -->
+<table>
+<tr>
+<td align="center"><img src="images/input/image.jpg" width="380"><br>Input RGB</td>
+<td align="center"><img src="images/output/output.jpg" width="380"><br>Grayscale (SystemC model)</td>
+</tr>
+</table>
+<!-- RESULTS:OUTPUT-IMAGE:END -->
 
-_Pending a first run — needs a gem5 source tree (`make gem5 GEM5_ROOT=…`). The
-config, the SimObject glue and the SE-mode driver path are implemented; see
-[`src/gem5/README.md`](src/gem5/README.md) for the
-one known risk to validate on that run._
-
-### HLS synthesis / co-simulation report
+### HLS kernel — functional co-simulation (host)
 
 The kernel is implemented (3-stage `HLS DATAFLOW`). Functional correctness is
 verified on the host without Vitis — `make hls-host` runs the co-simulation
 testbench against the real 1080p image and `make check` confirms the output
 matches BT.601 byte-for-byte:
 
+<!-- RESULTS:HLS-HOST:START -->
 ```
-TEST PASSED — Processed 2073600 pixels successfully.
+TEST PASSED
+Processed 2073600 pixels successfully.
 OK    images/output/output_hls.raw  (HLS co-simulation): 2073600 pixels match BT.601
 ```
+<!-- RESULTS:HLS-HOST:END -->
 
-_The `csynth`/`cosim` reports (latency, II, resources, 250 MHz timing, AXI RTL)
-are pending a run on a machine with Vitis HLS 2024.1 — `cd src/hls/scripts &&
-vitis_hls -f run_hls.tcl`._
+### GEM5 virtual prototype — simulation log
 
-<!-- Resource utilization (LUT/FF/BRAM/DSP), timing closure at 250 MHz, cosim latency. -->
+Produced by the gem5 CI workflow, which builds gem5 with the accelerator
+compiled in (`make gem5`) inside the dev container and runs the ARM64 driver
+(`make run-vp`), then checks `output_gem5.raw` against BT.601:
+
+<!-- RESULTS:GEM5:START -->
+_Pending the first gem5 CI run (`.github/workflows/results-gem5.yml`, manual
+`workflow_dispatch`). The config, the SimObject glue and the SE-mode driver path
+are implemented; see [`src/gem5/README.md`](src/gem5/README.md) for the one known
+risk to validate on that run._
+<!-- RESULTS:GEM5:END -->
+
+### HLS synthesis / co-simulation report (Vitis)
+
+The `csynth`/`cosim` reports below — latency, initiation interval, resource
+utilization (LUT/FF/BRAM/DSP), timing closure at 250 MHz, and AXI RTL — require
+Vitis HLS 2024.1, which cannot run on GitHub-hosted CI (needs an install +
+license). **Fill this block in by hand after running `cd src/hls/scripts &&
+vitis_hls -f run_hls.tcl`** on a machine with Vitis; the reports land under
+`src/hls/scripts/grayscale_accel_prj/solution1/{syn,sim}/report/`.
+
+<!-- RESULTS:HLS-SYNTH:START -->
+> **⚠️ Manual — not yet filled in.** Paste here once Vitis has run:
+>
+> | Metric | Value |
+> |---|---|
+> | Target clock | 4.00 ns (250 MHz) |
+> | Estimated clock (worst negative slack) | _TBD_ |
+> | Latency (cycles, min/max) | _TBD_ |
+> | Initiation interval (II) | _TBD_ |
+> | LUT / FF / BRAM / DSP | _TBD_ |
+> | Co-simulation result | _TBD_ |
+<!-- RESULTS:HLS-SYNTH:END -->
 
 ---
 
@@ -385,3 +434,4 @@ Declared as required by course policy — see [docs/Enunciado.md](docs/Enunciado
 | Model | Type of use | Prompt |
 |---|---|---|
 | Claude Sonnet 5 ([Claude Code](https://claude.ai/code)) | Concept lookup, documentation generation, diagram generation, repo scaffolding | *"Create a new repo based on mp6160-systemc-tlm-image-accelerator to start shaping the HLS + GEM5 evaluation: reuse the previous SystemC/TLM model, add scaffolding (not implementation) for the Vitis HLS kernel/testbench/TCL flow and for the GEM5 ARM64 + TLM virtual prototype, and update the README with the new architecture, memory map, and diagrams."* |
+| Claude Opus 4.8 ([Claude Code](https://claude.ai/code)) | Code search, template/script generation, CI/CD automation, writing improvement | *"Help locate relevant files and patterns, generate templates and helper scripts, assist with automating the CI/CD result-generation workflows, and improve the README wording."* |

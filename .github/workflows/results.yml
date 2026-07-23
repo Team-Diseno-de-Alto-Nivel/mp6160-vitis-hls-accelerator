@@ -1,0 +1,67 @@
+name: Results (model + HLS host)
+
+# Regenerates the fast, license-free result blocks in README.md — the SystemC
+# model's byte/BT.601 check, the HLS host co-simulation check, and the output
+# image — and commits them back to the PR branch as github-actions[bot]. The
+# heavier gem5 results live in results-gem5.yml. Vitis synth/cosim can't run on
+# GitHub-hosted runners (no license) and stays a manual block in the README.
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+# Needed so the bot can push the regenerated README + JPG back to the branch.
+permissions:
+  contents: write
+
+# One in-flight run per branch; a newer push supersedes an older, half-done one.
+concurrency:
+  group: results-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  results:
+    name: Generate model + HLS host results
+    runs-on: ubuntu-latest
+    # Don't recurse: the bot's own result commit must not trigger another run.
+    if: github.actor != 'github-actions[bot]'
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake python3-pil python3-numpy
+
+      - name: Run the standalone SystemC model
+        run: make run-model | tee sim.log
+
+      - name: Run the HLS kernel on the host
+        run: make hls-host | tee hls.log
+
+      - name: Verify both outputs against the BT.601 reference
+        run: python3 scripts/check_output.py | tee check.log
+
+      - name: Convert the grayscale output to JPG
+        run: python3 scripts/raw_to_jpg.py images/output/output.raw images/output/output.jpg --gray
+
+      - name: Write results into README.md
+        run: |
+          python3 scripts/generate_results.py model --run-log sim.log --check-log check.log
+          python3 scripts/generate_results.py hls   --run-log hls.log --check-log check.log
+          python3 scripts/generate_results.py image
+
+      - name: Commit regenerated results to the PR branch
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add README.md images/output/output.jpg
+          if git diff --cached --quiet; then
+            echo "No result changes to commit"
+          else
+            git commit -m "ci: update model + HLS host results"
+            git push origin HEAD:${{ github.head_ref }}
+          fi
