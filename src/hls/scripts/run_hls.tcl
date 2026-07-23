@@ -11,8 +11,14 @@ set input_image [file join $repo_root images input image.raw]
 open_project -reset grayscale_accel_prj
 set_top grayscale_accel
 
-add_files       ../grayscale_accel.cpp -cflags "-std=c++17"
-add_files -tb   ../tb/grayscale_accel_tb.cpp -cflags "-std=c++17"
+# NOTE: the design file is synthesized in C++14, not C++17. Vitis HLS 2024.1's
+# csynth front-end mis-parses the C++17-guarded blocks of gcc 8.3.0's STL headers
+# (bundled with Vitis) and aborts with "[HLS 207-2916] C++ requires a type
+# specifier for all declarations" pointing into bits/stl_pair.h. csim uses the
+# full clang and is unaffected, so it passes under C++17 while csynth fails.
+# The kernel needs nothing above C++14, so C++14 sidesteps the parser bug.
+add_files       ../grayscale_accel.cpp -cflags "-std=c++14"
+add_files -tb   ../tb/grayscale_accel_tb.cpp -cflags "-std=c++14"
 
 open_solution -reset "solution1" -flow_target vivado
 
