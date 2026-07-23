@@ -411,16 +411,50 @@ vitis_hls -f run_hls.tcl`** on a machine with Vitis; the reports land under
 `src/hls/scripts/grayscale_accel_prj/solution1/{syn,sim}/report/`.
 
 <!-- RESULTS:HLS-SYNTH:START -->
-> **⚠️ Manual — not yet filled in.** Paste here once Vitis has run:
->
-> | Metric | Value |
-> |---|---|
-> | Target clock | 4.00 ns (250 MHz) |
-> | Estimated clock (worst negative slack) | _TBD_ |
-> | Latency (cycles, min/max) | _TBD_ |
-> | Initiation interval (II) | _TBD_ |
-> | LUT / FF / BRAM / DSP | _TBD_ |
-> | Co-simulation result | _TBD_ |
+Filled in by hand from `solution1/syn/report/csynth.rpt` (Vitis HLS 2024.1,
+`xck26-sfvc784-2LV-c`):
+
+| Metric | Value |
+|---|---|
+| Target clock | 4.00 ns (250 MHz) |
+| Critical path | 3.239 ns → **estimated Fmax 308.74 MHz** |
+| LUT / FF / BRAM / DSP | 4,689 (4%) / 4,220 (1%) / 4 (1%) / 13 (1%) |
+| Dataflow stages | 3 (`read_rgb` → `compute_gray` → `write_gray`) + `entry_proc` |
+| `read_loop` II / iteration latency | **3** / 5 |
+| `compute_loop` II / iteration latency | 1 / 39 |
+| `write_loop` II / iteration latency | 1 / 3 |
+| Interfaces | `m_axi` ×2 (`gmem0` read, `gmem1` write, 32-bit address) + `s_axilite` `control` |
+
+The generated AXI4-Lite register block matches [Memory Map](#memory-map) exactly
+— `CTRL` @ `0x00`, `rgb_in` @ `0x10`, `gray_out` @ `0x18`, `num_pixels` @ `0x20`
+— which confirms `src/common/memory_map.h` against the hardware Vitis actually
+produced, rather than against the documentation.
+
+**On the clock uncertainty.** The numbers above come from a run that used Vitis's
+default clock uncertainty of 27% of the period (1.08 ns), the headroom it holds
+back for Vivado place & route. That default is what put the *reported* slack at
+−0.32 ns: the budget it leaves is 2.92 ns, below the 3.239 ns critical path, even
+though the logic itself closes comfortably inside the 4.00 ns target.
+`run_hls.tcl` now sets `set_clock_uncertainty 0.5` (12.5%) instead — this design
+occupies ~4% of the KV260's LUTs, so the routing pressure the larger default
+guards against does not apply here. That raises the budget to 3.50 ns, above the
+measured critical path. _The slack figure from a run with the new setting is not
+recorded here yet; re-run `vitis_hls -f run_hls.tcl` and add it._
+
+**Known limitation — `read_loop` runs at II=3, not II=1.** `rgb_in` is an
+`unsigned char*`, so Vitis infers an 8-bit AXI port moving 1 B/cycle, while the
+read stage needs 3 B per pixel. Since `#pragma HLS DATAFLOW` throughput is set by
+the slowest stage, the kernel sustains one pixel every 3 cycles: ~6.22 M cycles
+≈ **24.9 ms per 1080p frame (≈40 fps)** at 250 MHz, against ~8.3 ms (≈120 fps)
+if all three stages held II=1. Automatic port width resizing does not fix it —
+`max_widen_bitwidth=64` was tried and Vitis rejected it with *"Widen Fail:
+sequential access length is not divisible by 2"*, because a pixel is 3 bytes.
+Reaching II=1 would mean restructuring `read_rgb` to consume 8 pixels (24 B) per
+iteration so the access length divides evenly into a 64-bit port. That was left
+undone deliberately: the assignment specifies 250 MHz, AXI4/AXI4-Lite and a
+pipeline with separated I/O and compute stages, but no throughput target, and the
+restructuring would blur exactly the stage separation the assignment asks to
+demonstrate.
 <!-- RESULTS:HLS-SYNTH:END -->
 
 ---

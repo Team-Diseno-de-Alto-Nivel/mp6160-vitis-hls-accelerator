@@ -83,18 +83,15 @@ void grayscale_accel(
     // C/RTL co-simulation (1080p: 3 B/pixel in, 1 B/pixel out); it does not
     // constrain synthesis.
     //
-    // max_widen_bitwidth=64 is what keeps read_rgb at II=1. Both pointers are
-    // `unsigned char*`, so Vitis would otherwise infer 8-bit AXI ports moving
-    // 1 B/cycle -- and since read_rgb consumes 3 B/pixel, the read stage would
-    // be stuck at II=3 and throttle the whole DATAFLOW region to 3 cycles per
-    // pixel. Widening to 64 bits gives 8 B/cycle, comfortably above the 3 B and
-    // 1 B per cycle the read and write stages need to sustain II=1.
-    // Automatic port width resizing only rewrites how bytes are fetched, so the
-    // arithmetic -- and thus bit-exactness with the SystemC model -- is
-    // untouched, and plain g++ ignores these pragmas so `make hls-host` still
-    // builds the same source.
-#pragma HLS INTERFACE m_axi     port=rgb_in     offset=slave bundle=gmem0 depth=6220800 max_widen_bitwidth=64
-#pragma HLS INTERFACE m_axi     port=gray_out   offset=slave bundle=gmem1 depth=2073600 max_widen_bitwidth=64
+    // Both ports stay 8 bits wide, which caps read_rgb at II=3 (it needs 3 B per
+    // pixel and the port moves 1 B/cycle). Automatic port width resizing does
+    // NOT fix this: max_widen_bitwidth=64 was tried and Vitis rejected it with
+    // "Widen Fail - sequential access length is not divisible by 2", because a
+    // pixel is 3 bytes. Widening would require restructuring read_rgb to consume
+    // 8 pixels (24 B) per iteration. Left as is deliberately -- see the HLS
+    // results section in README.md.
+#pragma HLS INTERFACE m_axi     port=rgb_in     offset=slave bundle=gmem0 depth=6220800
+#pragma HLS INTERFACE m_axi     port=gray_out   offset=slave bundle=gmem1 depth=2073600
     // AXI4-Lite control: base addresses, pixel count, and ap_start/ap_done.
 #pragma HLS INTERFACE s_axilite port=rgb_in     bundle=control
 #pragma HLS INTERFACE s_axilite port=gray_out   bundle=control
