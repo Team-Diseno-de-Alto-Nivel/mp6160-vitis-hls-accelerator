@@ -42,6 +42,6 @@ __pycache__/
 # README), so they are not tracked.
 src/hls/scripts/grayscale_accel_prj/
 *.rpt
-vitis_hls.log
-vitis-run.log
+vitis_hls*.log
+vitis-run*.log
 .Xil/
