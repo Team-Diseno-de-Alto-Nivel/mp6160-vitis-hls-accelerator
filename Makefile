@@ -1,4 +1,4 @@
-.PHONY: all model program hls prepare run-model gem5 run-vp check clean
+.PHONY: all model program hls hls-host prepare run-model gem5 run-vp check clean
 
 # Path to a gem5 *source tree* (not just a gem5.opt on PATH): the SystemC
 # accelerator is compiled into gem5 via scons EXTRAS, so gem5 must be rebuilt.
@@ -29,6 +29,18 @@ program:
 
 hls:
 	cd src/hls/scripts && vitis_hls -f run_hls.tcl
+
+# Functional check of the HLS kernel on the host, WITHOUT Vitis: compiles the
+# kernel (hls::stream falls back to a host shim) together with the co-simulation
+# testbench and runs it against the real 1080p image, validating RGB->gray
+# byte-for-byte against the BT.601 golden. Does NOT replace csynth/cosim
+# (timing, AXI, RTL), which still need Vitis HLS.
+hls-host: prepare
+	mkdir -p src/hls/build
+	g++ -std=c++17 -O2 -Wall -Wno-unknown-pragmas -Wno-unused-label \
+	    src/hls/grayscale_accel.cpp src/hls/tb/grayscale_accel_tb.cpp \
+	    -o src/hls/build/hls_host
+	./src/hls/build/hls_host images/input/image.raw images/output/output_hls.raw
 
 # ── Virtual prototype (gem5 + SystemC/TLM) ────────────────────────────────────
 

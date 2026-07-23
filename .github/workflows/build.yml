@@ -40,17 +40,22 @@ jobs:
           cd src/program
           make
 
-  hls-compile-check:
-    name: HLS kernel + testbench (host compile check)
+  hls-host-functional:
+    name: HLS kernel functional check (host, no Vitis)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Compile with host g++
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential python3-pil python3-numpy
+      - name: Build + run the kernel on the host and verify against BT.601
         run: |
-          # Vitis HLS isn't available in CI, so this only catches syntax/type
-          # errors in the kernel and testbench — not synthesis or co-simulation.
-          g++ -std=c++17 -Wall -c src/hls/grayscale_accel.cpp -o /tmp/grayscale_accel.o
-          g++ -std=c++17 -Wall -I src/hls -c src/hls/tb/grayscale_accel_tb.cpp -o /tmp/grayscale_accel_tb.o
+          # Vitis HLS isn't available in CI. This compiles the kernel with a host
+          # shim for hls::stream, runs the co-simulation testbench against the
+          # real 1080p image, and checks the output byte-for-byte against the
+          # BT.601 golden. Validates functional correctness only — not
+          # synthesis/timing/AXI, which still require Vitis HLS.
+          make hls-host
+          python3 scripts/check_output.py
 
   gem5-config-lint:
     name: GEM5 config (syntax check)
