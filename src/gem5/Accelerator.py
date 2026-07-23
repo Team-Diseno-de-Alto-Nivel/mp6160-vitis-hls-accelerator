@@ -1,6 +1,6 @@
 """SimObject declaration for the SystemC accelerator inside gem5.
 
-Compiled into gem5 via `scons EXTRAS=<repo>/virtual-prototype ...` — see
+Compiled into gem5 via `scons EXTRAS=<repo>/src ...` — see
 ../README.md. The C++ side wraps the very same Accelerator module the
 standalone SystemC sim uses; nothing about the model is duplicated here.
 """
@@ -17,7 +17,7 @@ from m5.proxy import *
 class GrayscaleAccelerator(SystemC_ScModule):
     type = "GrayscaleAccelerator"
     cxx_class = "AcceleratorWrapper"
-    cxx_header = "gem5/src/accelerator_wrapper.hh"
+    cxx_header = "gem5/accelerator_wrapper.hh"
 
     system = Param.System(Parent.any, "system")
 

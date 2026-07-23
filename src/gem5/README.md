@@ -1,12 +1,12 @@
 # GEM5 + TLM 2.0 Bridge
 
 Wires the SystemC/TLM accelerator model in
-[`../systemc-model/src/accelerator`](../systemc-model/src/accelerator) into a
+[`../model/accelerator`](../model/accelerator) into a
 gem5 ARM64 system, so the CPU side of the flow is executed by gem5's simulated
 core (running the C program in [`../program`](../program)) instead of the
-`CPU` SystemC module used in the standalone `systemc-model` simulation.
+`CPU` SystemC module used in the standalone `model` simulation.
 
-The accelerator is not reimplemented or copied here — `src/SConscript` compiles
+The accelerator is not reimplemented or copied here — `SConscript` compiles
 the very same `accelerator.cpp` the standalone sim builds, which is what keeps
 the two tracks behaviourally identical.
 
@@ -16,7 +16,7 @@ the two tracks behaviourally identical.
   accelerator attached as an MMIO peripheral through gem5's SystemC/TLM bridges
   (`Gem5ToTlmBridge32` / `TlmToGem5Bridge32`, from `src/systemc/tlm_bridge/`).
   Parses `../common/memory_map.h` so it cannot drift from the model or driver.
-- `src/` — the gem5 SimObject glue (`scons EXTRAS=` target):
+- the gem5 SimObject glue (`scons EXTRAS=<repo>/src` target):
   - `Accelerator.py` — `GrayscaleAccelerator`, a `SystemC_ScModule` exposing a
     TLM target socket (config registers) and a TLM initiator socket (DMA).
   - `accelerator_wrapper.{hh,cc}` — wraps the SystemC module's two sockets as
@@ -47,7 +47,7 @@ Requires a gem5 **source tree** (a `gem5.opt` on `$PATH` is not enough — the
 accelerator is compiled into gem5):
 
 ```bash
-make gem5 GEM5_ROOT=/path/to/gem5   # scons build/ARM/gem5.opt EXTRAS=<repo>/virtual-prototype
+make gem5 GEM5_ROOT=/path/to/gem5   # scons build/ARM/gem5.opt EXTRAS=<repo>/src
 make run-vp GEM5_ROOT=/path/to/gem5 # cross-compiles the driver, then runs the config
 make check                          # verifies the output against the BT.601 reference
 ```

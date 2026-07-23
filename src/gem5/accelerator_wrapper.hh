@@ -15,7 +15,7 @@
 
 /*
  * Exposes the SystemC Accelerator — the same module the standalone sim in
- * ../../systemc-model runs — to gem5 as a SimObject.
+ * ../model runs — to gem5 as a SimObject.
  *
  * The module itself needs no gem5 awareness: this wrapper only publishes its
  * two TLM sockets as gem5 ports, so the Python config can bind them to

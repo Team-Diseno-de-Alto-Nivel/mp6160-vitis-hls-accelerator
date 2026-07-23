@@ -5,13 +5,13 @@
 # Absolute path to the input image, computed from this script's own location
 # so it doesn't depend on Vitis's internal csim/cosim working directory depth.
 set script_dir  [file dirname [file normalize [info script]]]
-set repo_root   [file normalize [file join $script_dir .. ..]]
-set input_image [file join $repo_root images input input_1080p.raw]
+set repo_root   [file normalize [file join $script_dir .. .. ..]]
+set input_image [file join $repo_root images input image.raw]
 
 open_project -reset grayscale_accel_prj
 set_top grayscale_accel
 
-add_files       ../src/grayscale_accel.cpp -cflags "-std=c++17"
+add_files       ../grayscale_accel.cpp -cflags "-std=c++17"
 add_files -tb   ../tb/grayscale_accel_tb.cpp -cflags "-std=c++17"
 
 open_solution -reset "solution1" -flow_target vivado

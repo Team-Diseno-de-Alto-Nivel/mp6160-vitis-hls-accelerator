@@ -15,11 +15,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install build dependencies
-        run: sudo apt-get update && sudo apt-get install -y build-essential cmake
+        run: sudo apt-get update && sudo apt-get install -y build-essential cmake python3-pil python3-numpy
       - name: Build + run the simulation
         run: |
-          cd virtual-prototype/systemc-model
-          make run
+          # 'run-model' first runs scripts/prepare_input.py, which regenerates
+          # images/input/image.raw from the tracked images/input/image.jpg (the
+          # .raw is git-ignored — the pipeline produces it).
+          make run-model
+      - name: Verify output against the BT.601 reference
+        run: |
+          # Fails the job if the model's output.raw does not match the golden
+          # grayscale computed on the host from images/input/image.raw.
+          python3 scripts/check_output.py
 
   arm64-driver:
     name: ARM64 driver (cross-compile)
@@ -30,7 +37,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
       - name: Cross-compile the driver
         run: |
-          cd virtual-prototype/program
+          cd src/program
           make
 
   hls-compile-check:
@@ -42,8 +49,8 @@ jobs:
         run: |
           # Vitis HLS isn't available in CI, so this only catches syntax/type
           # errors in the kernel and testbench — not synthesis or co-simulation.
-          g++ -std=c++17 -Wall -c hls/src/grayscale_accel.cpp -o /tmp/grayscale_accel.o
-          g++ -std=c++17 -Wall -I hls/src -c hls/tb/grayscale_accel_tb.cpp -o /tmp/grayscale_accel_tb.o
+          g++ -std=c++17 -Wall -c src/hls/grayscale_accel.cpp -o /tmp/grayscale_accel.o
+          g++ -std=c++17 -Wall -I src/hls -c src/hls/tb/grayscale_accel_tb.cpp -o /tmp/grayscale_accel_tb.o
 
   gem5-config-lint:
     name: GEM5 config (syntax check)
@@ -54,4 +61,4 @@ jobs:
         run: |
           # gem5 itself isn't built in CI (compiling it from source is too slow
           # for a per-PR check), so this only catches Python syntax errors.
-          python3 -m py_compile virtual-prototype/gem5/configs/*.py
+          python3 -m py_compile src/gem5/configs/*.py
