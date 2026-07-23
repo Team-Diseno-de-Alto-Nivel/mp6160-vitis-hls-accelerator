@@ -30,6 +30,14 @@ create_clock -period 4 -name default
 
 config_interface -m_axi_addr64=0
 
+# Lets the automatic port width resizing requested by max_widen_bitwidth in
+# grayscale_accel.cpp actually kick in: without an alignment guarantee Vitis has
+# to assume the base addresses are unaligned and falls back to narrow accesses.
+# Safe by construction -- every buffer base in src/common/memory_map.h is 1 MiB
+# aligned (RAM_IMG_IN 0x0, RAM_IMG_OUT 0x600000, GEM5_IMG_IN 0x80000000,
+# GEM5_IMG_OUT 0x80600000), well beyond the 64 B asserted here.
+config_interface -m_axi_alignment_byte_size=64
+
 # C simulation: run the pure-software model against the golden BT.601 check
 csim_design -argv $input_image
 

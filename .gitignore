@@ -35,3 +35,4 @@ __pycache__/
 !.vscode/c_cpp_properties.json
 *.swp
 *~
+csynth_design_size.rpt
