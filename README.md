@@ -365,7 +365,12 @@ Input RGB (left) and the grayscale the pipeline produced (right), regenerated
 from `images/output/*.raw` on every CI run:
 
 <!-- RESULTS:OUTPUT-IMAGE:START -->
-_Pending the first CI run that converts the RAW outputs to JPG._
+<table>
+<tr>
+<td align="center"><img src="images/input/image.jpg" width="380"><br>Input RGB</td>
+<td align="center"><img src="images/output/output.jpg" width="380"><br>Grayscale (SystemC model)</td>
+</tr>
+</table>
 <!-- RESULTS:OUTPUT-IMAGE:END -->
 
 ### HLS kernel — functional co-simulation (host)
@@ -377,7 +382,8 @@ matches BT.601 byte-for-byte:
 
 <!-- RESULTS:HLS-HOST:START -->
 ```
-TEST PASSED — Processed 2073600 pixels successfully.
+TEST PASSED
+Processed 2073600 pixels successfully.
 OK    images/output/output_hls.raw  (HLS co-simulation): 2073600 pixels match BT.601
 ```
 <!-- RESULTS:HLS-HOST:END -->
