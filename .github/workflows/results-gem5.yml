@@ -5,13 +5,30 @@ name: Results (gem5 virtual prototype)
 # driver over TLM (make run-vp), verifies output_gem5.raw against BT.601, and
 # commits the simulation log + output image into README.md as github-actions[bot].
 #
-# Manual-only (workflow_dispatch): the first scons build of gem5 is ~30-60 min,
-# far too heavy for a per-PR check. Reruns are much faster thanks to the cached
-# build/ directory. This is the one path that has not yet completed end to end
-# (see src/gem5/README.md for the known SE-mode risk); a failure here surfaces
-# that rather than blocking anything.
+# Runs on pull requests that touch the virtual prototype, so the result shows up
+# as a check on the PR, plus workflow_dispatch for manual reruns on any branch.
+#
+# The paths filter is what makes a per-PR run affordable: the first scons build
+# of gem5 is ~30-60 min (reruns are much faster thanks to the cached build/
+# directory), so it is deliberately kept off PRs that cannot affect it -- docs,
+# the HLS kernel, the scripts. Note the trade-off: because of the filter this
+# workflow must NOT be marked a required status check, since GitHub leaves a
+# required check pending forever on PRs where the filter skips it.
+#
+# The src/ restructure broke this build (a stale include in accelerator_wrapper.hh)
+# and nothing caught it, because build.yml only checks the gem5 config's Python
+# syntax and never compiles gem5 -- hence putting it on the PR path.
 
 on:
+  pull_request:
+    paths:
+      - "src/gem5/**"
+      - "src/model/**"
+      - "src/common/**"
+      - "src/program/**"
+      - ".devcontainer/**"
+      - "Makefile"
+      - ".github/workflows/results-gem5.yml"
   workflow_dispatch:
     inputs:
       ref:
@@ -23,7 +40,9 @@ permissions:
   contents: write
 
 concurrency:
-  group: results-gem5-${{ github.event.inputs.ref || github.ref_name }}
+  # On pull_request, github.ref_name is "<PR#>/merge" rather than the branch, so
+  # the head ref is what identifies the work here and in the checkout/push below.
+  group: results-gem5-${{ github.event.inputs.ref || github.event.pull_request.head.ref || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
@@ -32,11 +51,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     if: github.actor != 'github-actions[bot]'
+    env:
+      # The branch to run on and commit results to. On pull_request the default
+      # checkout is a detached merge commit and github.ref_name is "<PR#>/merge",
+      # neither of which can be pushed back to -- the head branch is what we want.
+      TARGET_REF: ${{ github.event.inputs.ref || github.event.pull_request.head.ref || github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.ref || github.ref_name }}
+          ref: ${{ env.TARGET_REF }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -89,5 +113,5 @@ jobs:
             echo "No result changes to commit"
           else
             git commit -m "ci: update gem5 virtual prototype results"
-            git push origin HEAD:${{ github.event.inputs.ref || github.ref_name }}
+            git push origin HEAD:"$TARGET_REF"
           fi
