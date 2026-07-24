@@ -94,7 +94,11 @@ jobs:
             -w /workspace \
             vitis-hls-accel:ci \
             bash -c '
-              set -e
+              # pipefail matters here: both piped steps below would otherwise
+              # report only the exit status of tee, so a failing make run-vp --
+              # or, worse, a check_output.py that finds a BT.601 mismatch --
+              # would pass silently and the results would still be committed.
+              set -eo pipefail
               make gem5
               make run-vp | tee gem5.log
               python3 scripts/check_output.py | tee check.log

@@ -45,3 +45,7 @@ src/hls/scripts/grayscale_accel_prj/
 vitis_hls*.log
 vitis-run*.log
 .Xil/
+
+# gem5's scons output, mounted over /opt/gem5/build so rebuilds are incremental.
+# Used by results-gem5.yml (actions/cache) and by the local dev-container loop.
+.gem5-build/
