@@ -6,7 +6,13 @@
 
 #include <string>
 
-#include "accelerator/accelerator.h"
+// Relative to this file on purpose. gem5 generates param_GrayscaleAccelerator.cc
+// from Accelerator.py and compiles it in its own environment, which does NOT
+// pick up the CPPPATH this module's SConscript appends -- so a search-path
+// include resolves when building accelerator_wrapper.cc and then fails on the
+// generated file. A path relative to this header resolves the same way in every
+// build that pulls it in.
+#include "../model/accelerator/accelerator.h"
 #include "base/types.hh"
 #include "systemc/ext/core/sc_module_name.hh"
 #include "systemc/ext/systemc"

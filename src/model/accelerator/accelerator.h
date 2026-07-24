@@ -5,7 +5,12 @@
 #include <tlm_utils/simple_target_socket.h>
 #include <tlm_utils/simple_initiator_socket.h>
 #include <cstdint>
-#include "memory_map.h"
+// Relative rather than search-path based: this header is compiled into three
+// builds (the standalone model's CMake, gem5 via EXTRAS, and transitively the
+// driver), and gem5's generated SimObject param file does not inherit the
+// CPPPATH that src/gem5/SConscript sets up. Resolving relative to this file
+// works in all of them. Same reason accelerator.cpp includes ../utils/.
+#include "../../common/memory_map.h"
 
 SC_MODULE(Accelerator)
 {

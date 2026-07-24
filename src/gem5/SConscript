@@ -9,8 +9,14 @@ Source("accelerator_wrapper.cc")
 # the two tracks behaviourally identical.
 Source("../model/accelerator/accelerator.cpp")
 
-# accelerator.h resolves "memory_map.h" from ../common, and accelerator.cpp
-# resolves "../utils/conversion.h" relative to itself.
+# Kept for the translation units declared above, but nothing is load-bearing here
+# any more: every cross-directory include in this module and in ../model is
+# written relative to the file that issues it, so it resolves without a search
+# path. That is deliberate -- gem5 compiles the generated
+# param_GrayscaleAccelerator.cc in an environment that does not inherit this
+# CPPPATH, so a search-path include builds accelerator_wrapper.cc fine and then
+# fails on the generated file, which is exactly how the src/ restructure broke
+# this build without any local test catching it.
 env.Append(
     CPPPATH=[
         Dir("../common"),
