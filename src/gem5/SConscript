@@ -4,13 +4,7 @@ SimObject("Accelerator.py", sim_objects=["GrayscaleAccelerator"])
 
 Source("accelerator_wrapper.cc")
 
-# The accelerator model itself is declared by ../model/SConscript, not here: a
-# Source() path containing ".." escapes the variant-dir mapping gem5 registers
-# for this directory and then fails to resolve. See that file for the details.
-#
-# No CPPPATH is set up either. Every cross-directory include in this module and
-# in ../model is written relative to the file that issues it, which is what makes
-# them resolve everywhere — including in the generated param_GrayscaleAccelerator.cc,
-# which gem5 compiles in an environment that would not inherit a CPPPATH set here.
-# A search-path include is exactly how the src/ restructure broke this build:
-# it compiled accelerator_wrapper.cc fine and only failed on the generated file.
+# The accelerator model is declared by ../model/SConscript, not here: a Source()
+# path with ".." escapes gem5's per-directory variant-dir mapping and fails to
+# resolve. No CPPPATH either — cross-directory includes are written relative to
+# their own file so they also resolve in the generated param file (see that file).

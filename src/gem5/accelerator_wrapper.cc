@@ -26,14 +26,9 @@ AcceleratorWrapper::gem5_getPort(const std::string &if_name, int idx)
 namespace gem5
 {
 
-/*
- * Every instantiable gem5 SimObject has to supply this: scons generates
- * param_GrayscaleAccelerator.cc from Accelerator.py, which binds
- * GrayscaleAcceleratorParams::create() into Python, but only declares it. Without
- * a definition everything compiles and the failure only shows up at link time as
- *   undefined reference to `gem5::GrayscaleAcceleratorParams::create() const'
- * The params struct lives in namespace gem5, so the definition has to as well.
- */
+// Factory every instantiable SimObject must define; scons only declares it in the
+// generated param file, so omitting it fails at link, not compile. Must be in
+// namespace gem5 where GrayscaleAcceleratorParams lives.
 AcceleratorWrapper *
 GrayscaleAcceleratorParams::create() const
 {

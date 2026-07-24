@@ -1,21 +1,10 @@
 Import("*")
 
-# Only the accelerator is compiled into gem5. Everything else in this directory
-# (cpu, bus, ram, disk, main.cpp) belongs to the standalone SystemC regression
-# sim and is built by CMake — see ../../README.md.
+# Only the accelerator is compiled into gem5 — the rest of this directory (cpu,
+# bus, ram, disk, main.cpp) is the standalone sim, built by CMake. This is the
+# same translation unit that sim compiles, not a copy, so the two stay identical.
 #
-# This file exists purely so the source can be declared from its own directory.
-# gem5 registers a variant-dir mapping per SConscript directory, so a
-# Source("../model/accelerator/accelerator.cpp") written from ../gem5/SConscript
-# escapes the mapping registered for src/gem5 and scons then resolves it against
-# gem5's own tree instead — it fails with
-#   Source `src/src/model/accelerator/accelerator.cpp' not found
-# Declaring it here keeps the path free of "..", so it resolves normally.
-#
-# This is the exact same translation unit the standalone sim compiles — not a
-# copy — which is what keeps the two tracks behaviourally identical.
-#
-# No CPPPATH is needed: accelerator.cpp includes accelerator.h from its own
-# directory and ../utils/conversion.h relative to itself, and accelerator.h
-# reaches memory_map.h the same way.
+# Declared here rather than from ../gem5/SConscript so the path needs no "..":
+# a ".." path escapes gem5's per-directory variant-dir mapping and fails to
+# resolve (`Source 'src/src/model/...' not found`).
 Source("accelerator/accelerator.cpp")

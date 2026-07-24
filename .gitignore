@@ -49,3 +49,9 @@ vitis-run*.log
 # gem5's scons output, mounted over /opt/gem5/build so rebuilds are incremental.
 # Used by results-gem5.yml (actions/cache) and by the local dev-container loop.
 .gem5-build/
+
+# gem5 run artifacts: m5out/ (stats.txt, config.ini, ...) and the tee'd run log.
+m5out/
+run-vp.log
+gem5.log
+check.log
