@@ -107,6 +107,10 @@ void Accelerator::process_image(uint32_t src_addr, uint32_t dst_addr, uint32_t p
         read_payload.set_address(src_offset);
         read_payload.set_data_ptr(rgb_data);
         read_payload.set_data_length(3);
+        // Required by gem5's TlmToGem5Bridge: it rejects streaming_width <
+        // data_length as an unsupported burst (TLM_BURST_ERROR_RESPONSE). The
+        // standalone Bus/RAM never checked it, hence the default 0 sufficed there.
+        read_payload.set_streaming_width(3);
         sc_core::sc_time delay = sc_core::SC_ZERO_TIME;
         init_socket->b_transport(read_payload, delay);
 
@@ -121,6 +125,7 @@ void Accelerator::process_image(uint32_t src_addr, uint32_t dst_addr, uint32_t p
         write_payload.set_address(dst_offset);
         write_payload.set_data_ptr(gray_data);
         write_payload.set_data_length(1);
+        write_payload.set_streaming_width(1);  // see the read above
         init_socket->b_transport(write_payload, delay);
     }
     SC_REPORT_INFO("Accelerator", "Processing complete");

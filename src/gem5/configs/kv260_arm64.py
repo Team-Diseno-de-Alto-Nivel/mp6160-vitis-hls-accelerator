@@ -70,6 +70,13 @@ def build_system(binary_path: str, mmap: dict):
     system.membus = SystemXBar()
 
     system.cpu = ArmTimingSimpleCPU()
+    # Disable Pointer Authentication: Ubuntu's static libc runs PAC (autia/autib)
+    # in its startup, and when gem5 models PAC it authenticates for real, corrupts
+    # the return address and derails. The KV260's Cortex-A53 (ARMv8.0) has no PAC,
+    # so this matches real hardware. gem5 gates PAC on the ID register, not the SE
+    # release list, so we zero the four PAuth fields of ID_AA64ISAR1_EL1 (default
+    # 0x01011010 → 0x00011000, non-PAC fields preserved).
+    system.cpu.isa = [ArmISA(id_aa64isar1_el1=0x00011000)]
     system.cpu.icache_port = system.membus.cpu_side_ports
     system.cpu.dcache_port = system.membus.cpu_side_ports
     system.cpu.createInterruptController()
@@ -86,6 +93,13 @@ def build_system(binary_path: str, mmap: dict):
         range=AddrRange(mmap["GEM5_IMG_IN"], size=image_region_size)
     )
     system.image_mem.port = system.membus.mem_side_ports
+    # Keep this buffer out of the SE physical-page allocator, which allocates from
+    # the lowest reported memory (getConfAddrRanges pool 0). Reported, image_mem at
+    # 0x80000000 sits below the process DRAM at 0x100000000, so the ELF's own pages
+    # land on top of this identity-mapped region and the process overwrites its own
+    # code. Not-reported keeps it fully addressable via the membus and identity map
+    # but off-limits to the allocator. (The "known risk" in the module README.)
+    system.image_mem.conf_table_reported = False
 
     # The SystemC accelerator, and its two bridges into gem5's memory system.
     system.accel = GrayscaleAccelerator()

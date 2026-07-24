@@ -6,7 +6,9 @@
 
 #include <string>
 
-#include "accelerator/accelerator.h"
+// Relative on purpose: gem5's generated param file does not inherit this module's
+// SConscript CPPPATH, so a search-path include would build here and fail there.
+#include "../model/accelerator/accelerator.h"
 #include "base/types.hh"
 #include "systemc/ext/core/sc_module_name.hh"
 #include "systemc/ext/systemc"

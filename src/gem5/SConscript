@@ -4,16 +4,7 @@ SimObject("Accelerator.py", sim_objects=["GrayscaleAccelerator"])
 
 Source("accelerator_wrapper.cc")
 
-# The accelerator model is not copied here — this is the exact same translation
-# unit the standalone sim in ../model compiles, which is what keeps
-# the two tracks behaviourally identical.
-Source("../model/accelerator/accelerator.cpp")
-
-# accelerator.h resolves "memory_map.h" from ../common, and accelerator.cpp
-# resolves "../utils/conversion.h" relative to itself.
-env.Append(
-    CPPPATH=[
-        Dir("../common"),
-        Dir("../model"),
-    ]
-)
+# The accelerator model is declared by ../model/SConscript, not here: a Source()
+# path with ".." escapes gem5's per-directory variant-dir mapping and fails to
+# resolve. No CPPPATH either — cross-directory includes are written relative to
+# their own file so they also resolve in the generated param file (see that file).

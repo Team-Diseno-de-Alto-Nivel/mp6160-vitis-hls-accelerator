@@ -1,5 +1,7 @@
 #include "accelerator_wrapper.hh"
 
+#include "params/GrayscaleAccelerator.hh"
+
 AcceleratorWrapper::AcceleratorWrapper(sc_core::sc_module_name name)
     : sc_core::sc_module(name),
       accel("accelerator", ACCEL_BASE),
@@ -20,3 +22,17 @@ AcceleratorWrapper::gem5_getPort(const std::string &if_name, int idx)
         return initiator_wrapper;
     return sc_core::sc_module::gem5_getPort(if_name, idx);
 }
+
+namespace gem5
+{
+
+// Factory every instantiable SimObject must define; scons only declares it in the
+// generated param file, so omitting it fails at link, not compile. Must be in
+// namespace gem5 where GrayscaleAcceleratorParams lives.
+AcceleratorWrapper *
+GrayscaleAcceleratorParams::create() const
+{
+    return new AcceleratorWrapper(name.c_str());
+}
+
+} // namespace gem5

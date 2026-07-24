@@ -100,7 +100,7 @@ Three workflows under [`.github/workflows/`](.github/workflows/):
 
 - **[`build.yml`](.github/workflows/build.yml)** — the compile gate, on every push to `main` and every PR. Builds + runs the standalone SystemC model, cross-compiles the ARM64 driver, compiles the HLS kernel + testbench with host `g++`, and checks the gem5 config's Python syntax. Validation only (no Vitis/gem5 install), so it fails a PR that breaks compilation.
 - **[`results.yml`](.github/workflows/results.yml)** — on every PR (and manual dispatch). Runs the model and the HLS host co-simulation, verifies both against BT.601, renders the grayscale output to JPG, and commits the regenerated result blocks + image back to the PR branch as `github-actions[bot]`. No numbers in the [Results](#results) section are ever hand-copied.
-- **[`results-gem5.yml`](.github/workflows/results-gem5.yml)** — manual `workflow_dispatch` only. Builds gem5 with the accelerator compiled in inside the dev container (`make gem5`, ~30–60 min; cached), runs the ARM64 driver over TLM (`make run-vp`), checks `output_gem5.raw`, and commits the simulation log block. Kept off the per-PR path because the gem5 build is heavy.
+- **[`results-gem5.yml`](.github/workflows/results-gem5.yml)** — on pull requests that touch the virtual prototype (`src/{gem5,model,common,program}`, `.devcontainer`, `Makefile`), plus manual `workflow_dispatch` for reruns on any branch. Builds gem5 with the accelerator compiled in inside the dev container (`make gem5`, ~30–60 min; cached), runs the ARM64 driver over TLM (`make run-vp`), checks `output_gem5.raw`, and commits the simulation log block. The `paths` filter keeps it affordable — it stays off PRs that cannot affect gem5. The job runs with `continue-on-error: true`, so it is **advisory**: the ~30–60 min build reports its result but never blocks a merge, since the numbers below are produced and verified locally in the dev container (same `make gem5 && make run-vp && make check`). For the same reason it must **not** be added as a required status check.
 
 Vitis HLS synthesis/co-simulation (csynth/cosim, 250 MHz timing, resources) **cannot** run on GitHub-hosted runners — no license/install — so that block in [Results](#results) is filled in by hand after running `vitis_hls -f run_hls.tcl` locally.
 
@@ -395,10 +395,23 @@ compiled in (`make gem5`) inside the dev container and runs the ARM64 driver
 (`make run-vp`), then checks `output_gem5.raw` against BT.601:
 
 <!-- RESULTS:GEM5:START -->
-_Pending the first gem5 CI run (`.github/workflows/results-gem5.yml`, manual
-`workflow_dispatch`). The config, the SimObject glue and the SE-mode driver path
-are implemented; see [`src/gem5/README.md`](src/gem5/README.md) for the one known
-risk to validate on that run._
+```
+Global frequency set at 1000000000000 ticks per second
+gem5 Simulator System.  https://www.gem5.org
+gem5 is copyrighted software; use the --copyright option for details.
+gem5 version 24.0.0.0
+gem5 compiled Jul 24 2026 05:12:00
+gem5 started Jul 24 2026 05:16:19
+gem5 executing on 3ff3cbfd5702, pid 27
+gem5: running /workspace/src/program/build/driver
+driver: loaded 6220800 bytes from images/input/image.raw
+driver: configured accelerator (src=0x80000000, dst=0x80600000, pixels=2073600)
+driver: waiting for accelerator (ap_done)...
+driver: accelerator done
+driver: saved 2073600 bytes to images/output/output_gem5.raw
+gem5: exiting @ tick 544528496000 because exiting with last active thread context
+OK    images/output/output_gem5.raw  (gem5 virtual prototype): 2073600 pixels match BT.601
+```
 <!-- RESULTS:GEM5:END -->
 
 ### HLS synthesis / co-simulation report (Vitis)

@@ -5,7 +5,9 @@
 #include <tlm_utils/simple_target_socket.h>
 #include <tlm_utils/simple_initiator_socket.h>
 #include <cstdint>
-#include "memory_map.h"
+// Relative, not search-path based: compiled into three builds (model CMake, gem5
+// via EXTRAS, driver), and gem5's generated param file inherits no CPPPATH.
+#include "../../common/memory_map.h"
 
 SC_MODULE(Accelerator)
 {

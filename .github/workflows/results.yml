@@ -14,6 +14,15 @@ on:
 permissions:
   contents: write
 
+# GitHub's default shell for `run:` is `bash -e {0}` — no pipefail — so in a
+# `cmd | tee log` step bash only sees tee's exit status and a failing cmd passes
+# silently. That matters most for the check_output.py step: without this, a
+# mismatch against BT.601 would leave the step green and the results would still
+# be committed. Naming the shell explicitly gets `-eo pipefail`.
+defaults:
+  run:
+    shell: bash
+
 # One in-flight run per branch; a newer push supersedes an older, half-done one.
 concurrency:
   group: results-${{ github.head_ref || github.ref_name }}

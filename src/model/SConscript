@@ -1,0 +1,10 @@
+Import("*")
+
+# Only the accelerator is compiled into gem5 — the rest of this directory (cpu,
+# bus, ram, disk, main.cpp) is the standalone sim, built by CMake. This is the
+# same translation unit that sim compiles, not a copy, so the two stay identical.
+#
+# Declared here rather than from ../gem5/SConscript so the path needs no "..":
+# a ".." path escapes gem5's per-directory variant-dir mapping and fails to
+# resolve (`Source 'src/src/model/...' not found`).
+Source("accelerator/accelerator.cpp")
